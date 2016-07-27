@@ -41,3 +41,7 @@ Makefile
 ./example/*.dat
 ./example/config_CFD.cfg
 ./example/*.csv
+
+# SU2 Mesh files
+*.geo
+*.mesh
