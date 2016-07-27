@@ -21,15 +21,15 @@ def Run( nozzle ):
 	# --- Check SU2 version
 	
 	CheckSU2Version(nozzle);
-		
+
 	# --- Check fidelity level
 	
 	CheckOptions (nozzle);
 	
 	curDir = os.path.dirname(os.path.realpath(__file__));
+	nozzle.runDir = curDir; # RWF 7/27/16
 
-
-	os.chdir(nozzle.runDir);
+	#os.chdir(nozzle.runDir); # RWF 7/27/16
 	
 	
 	# --- Run CFD

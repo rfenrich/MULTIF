@@ -20,8 +20,10 @@ class optionsmesh:
 def GenerateNozzleMesh (nozzle):
 	import tempfile
 	
-	hdl, nozzle.tmpGeoNam = tempfile.mkstemp(suffix='.geo');
-	hdl, nozzle.tmpMshNam = tempfile.mkstemp(suffix='.mesh');
+	#hdl, nozzle.tmpGeoNam = tempfile.mkstemp(suffix='.geo'); # RWF 7/27/16
+	#hdl, nozzle.tmpMshNam = tempfile.mkstemp(suffix='.mesh'); # RWF 7/27/16
+	nozzle.tmpGeoNam = 'nozzle.geo'; # RWF 7/27/16
+	nozzle.tmpMshNam = 'nozzle.mesh'; # RWF 7/27/16
 	
 	# --- Write geo file
 	

@@ -689,7 +689,7 @@ def NozzleSetup( config_name, flevel ):
 
 	nozzle.mesh_name    =  'nozzle.su2'; #tempfile.mkstemp(suffix='.su2');
 	nozzle.restart_name =  'nozzle.dat'; #tempfile.mkstemp(suffix='.dat');
-	nozzle.runDir       =  tempfile.mkdtemp();
+	#nozzle.runDir       =  tempfile.mkdtemp(); # RWF 7/27/16
 	
 	nozzle.Output_Name  = 'output.dat';
 	
