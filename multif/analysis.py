@@ -82,9 +82,10 @@ def runThermalAnalysis(nozzle, analysis, post_process_only=False,
 
         if nozzle.method != 'NONIDEALNOZZLE':
             linkFiles = [os.path.join(aeroLocalDir,"nozzle.su2"),
-                        os.path.join(aeroLocalDir,"nozzle.dat")]
+                        os.path.join(aeroLocalDir,"nozzle.dat"),
+                        "nozzle.su2", "nozzle.dat"] # try AERO subdir and eval dir
         else:
-            linkFiles = [os.path.join(aeroLocalDir,"wall_results.txt")]
+            linkFiles = [os.path.join(aeroLocalDir,"wall_results.txt"), "wall_results.txt"] # try AERO subdir and eval dir
         utils.makeDirAndLink(runDir, linkFiles)
         os.chdir(runDir)
         models.thermstruct.run.thermalAnalysis(nozzle, 
@@ -128,9 +129,10 @@ def runStructuralAnalysis(nozzle, analysis, post_process_only=False,
         
         if nozzle.method != 'NONIDEALNOZZLE':
             linkFiles = [os.path.join(aeroLocalDir,"nozzle.su2"),
-                        os.path.join(aeroLocalDir,"nozzle.dat")]
+                        os.path.join(aeroLocalDir,"nozzle.dat"),
+                        "nozzle.su2", "nozzle.dat"] # try AERO subdir and eval dir
         else:
-            linkFiles = [os.path.join(aeroLocalDir,"wall_results.txt")]
+            linkFiles = [os.path.join(aeroLocalDir,"wall_results.txt"), "wall_results.txt"] # try AERO subdir and eval dir
         utils.makeDirAndLink(runDir, linkFiles)
         os.chdir(runDir)
         models.thermstruct.run.structuralAnalysis(nozzle, 

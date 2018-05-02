@@ -61,7 +61,13 @@ tacc_job = os.environ.has_key('TACC_PUBLIC_MACHINE')
 
 # set mpi command
 if slurm_job:
-    mpi_Command = 'srun -n %i %s'
+    # SU2_CFD 5000 iters on 32 cores ~ 45 minutes 
+    mpi_Command = 'salloc --ntasks=%i --time=%s mpirun --mca mpi_cuda_support 0 --max-restarts 2 --enable-recovery --display-map --display-allocation --report-bindings %s'
+#    mpi_Command = 'salloc --ntasks=%i --time=0-01:00 mpirun --mca mpi_cuda_support 0 --max-restarts 2 --enable-recovery --display-map --display-allocation --report-bindings %s'
+#    mpi_Command = 'srun -mpi openmpi --verbose --verbose -n %i %s'
+    #mpi_Command = 'mpirun --mca mpi_cuda_support 0 --map-by core:SPAN --display-map --display-allocation --report-bindings -n %i %s'
+    # RUNS IN NEW ALLOCATION mpi_Command = 'salloc -n 4 mpirun --mca mpi_cuda_support 0 --map-by core:SPAN --display-map --display-allocation --report-bindings -n %i %s'
+    #mpi_Command = 'mpirun --mca mpi_cuda_support 0 --bind-to none --display-map --display-allocation --report-bindings -n %i %s'
     if tacc_job:
         mpi_Command = 'ibrun -o 0 -n %i %s'
 elif not which('mpirun') is None:
@@ -76,7 +82,35 @@ return_code_map = {
     1 : EvaluationFailure ,
     2 : DivergenceFailure ,
 }
-    
+
+# -----------------------------------------------------------
+# Helper functions
+# ----------------------------------------------------------
+
+def getAndWriteSlurmVariables(label):
+    """
+    Get and write Slurm environment variables to a file so we can see what is
+    going on with Slurm.
+    """
+
+    envVars = os.environ
+    with open('%s_slurm_vars.txt'%label,'w') as f:
+        for v in envVars:
+            if 'SLURM' in v:
+                f.write('%s: %s\n' % (v, os.getenv(v)))
+    # Write PATH and LD_LIBRARY_PATH varibles as well
+    with open('%s_path.txt'%label,'w') as f:
+        f.write('PATH: %s\n' % os.getenv('PATH'))
+        f.write('LD_LIBRARY_PATH: %s\n' % os.getenv('LD_LIBRARY_PATH'))
+    # Write OpenMPI environment variables as well
+    with open('%s_ompi_vars.txt'%label,'w') as f:
+        for v in envVars:
+            if 'OMPI' in v:
+                f.write('%s: %s\n' % (v, os.getenv(v)))
+  
+    return
+
+ 
 # ------------------------------------------------------------
 #  SU2 Suite Interface Functions
 # ------------------------------------------------------------
@@ -318,7 +352,20 @@ def build_command( the_Command , processes=0, base='' ):
     if processes > 1:
         if not mpi_Command:
             raise RuntimeError , 'could not find an mpi interface'
-        the_Command = mpi_Command % (processes,the_Command)
+
+        if 'SU2_DEF' in the_Command:
+            trun = '0-00:05' # 20 seconds on 32 cores on Sherlock
+        elif 'SU2_CFD' in the_Command:
+            #trun = '0-01:15' # 45 minutes on 32 cores on Sherlock (3D RANS)
+            trun = '0-00:10' # 2 minutes on 32 cores on Sherlock (3D Euler)
+        elif 'SU2_DOT' in the_Command:
+            trun = '0-00:15' # not timed yet
+        elif 'SU2_AD' in the_Command:
+            trun = '0-01:15' # not timed yet
+        else:
+            trun = '0-00:30'
+            
+        the_Command = mpi_Command % (processes, trun, the_Command)
     return the_Command
 
 def run_command( Command ):
@@ -328,24 +375,44 @@ def run_command( Command ):
     
     sys.stdout.flush()
     
+    # For debugging record environment variables
+    if 'SU2_DEF' in Command:
+        getAndWriteSlurmVariables('SU2_DEF')
+    elif 'SU2_CFD' in Command:
+        getAndWriteSlurmVariables('SU2_CFD')
+    
+    print("Running command: %s" % Command)
     proc = subprocess.Popen( Command, shell=True    ,
                              stdout=sys.stdout      , 
-                             stderr=subprocess.PIPE  )
+                             stderr=subprocess.STDOUT ,
+                             bufsize=-1  )
     return_code = proc.wait()
-    message = proc.stderr.read()
+    #message = proc.stderr.read()
+    message = 'Message is unavailable'
+
+    # Rerun command if it appears that the correct file was not written
+    if return_code > 0: #('SU2_DEF' in Command and not os.path.exists('nozzle.su2')) or ('SU2_CFD' in Command and not os.path.exists('nozzle.dat')):
+        print("Rerunning command: %s" % Command)
+        proc = subprocess.Popen( Command, shell=True    ,
+                                 stdout=sys.stdout      ,
+                                 stderr=subprocess.STDOUT ,
+                                 bufsize=-1  )
+        return_code = proc.wait()
+        #message = proc.stderr.read() 
+        message = '2nd message is unavailable'
     
-    if return_code < 0:
-        message = "SU2 process was terminated by signal '%s'\n%s" % (-return_code,message)
-        raise SystemExit , message
-    elif return_code > 0:
-        message = "Path = %s\nCommand = %s\nSU2 process returned error '%s'\n%s" % (os.path.abspath(','),Command,return_code,message)
-        if return_code in return_code_map.keys():
-            exception = return_code_map[return_code]
-        else:
-            exception = RuntimeError
-        raise exception , message
-    else:
-        sys.stdout.write(message)
+#    if return_code < 0:
+#        message = "SU2 process was terminated by signal '%s'\n%s" % (-return_code,message)
+#        raise SystemExit , message
+#    elif return_code > 0:
+#        message = "Path = %s\nCommand = %s\nSU2 process returned error '%s'\n%s" % (os.path.abspath(','),Command,return_code,message)
+#        if return_code in return_code_map.keys():
+#            exception = return_code_map[return_code]
+#        else:
+#            exception = RuntimeError
+#        raise exception , message
+#    else:
+#        sys.stdout.write(message)
             
     return return_code
 

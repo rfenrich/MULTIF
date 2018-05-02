@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import subprocess
 
 import multif
 from ....models import _nozzle_module
@@ -21,7 +22,17 @@ def getMass(nozzle, run_analysis=True, output='verbose'):
 
     if run_analysis:
         # Calculate mass of thermal layer
-        os.system("aeros nozzle.aeros.cmc.mass")
+        if 'SLURM_NTASKS' in os.environ:
+#            subprocess.call(['srun','-n','1','--mem-per-cpu=4G','aeros','nozzle.aeros.cmc.mass'])
+            subprocess.call(['salloc','-n','1','--mem-per-cpu=4G','--time=0-00:01','aeros','nozzle.aeros.cmc.mass'])
+            if not os.path.exists('MASS.txt.cmc'):
+                subprocess.call(['salloc','-n','1','--mem-per-cpu=4G','--time=0-00:01','aeros','nozzle.aeros.cmc.mass'])
+            if not os.path.exists('MASS.txt.cmc'):
+                subprocess.call(['salloc','-n','1','--mem-per-cpu=4G','--time=0-00:01','aeros','nozzle.aeros.cmc.mass'])
+            if not os.path.exists('MASS.txt.cmc'):
+                raise RuntimeError("AERO-S mass calculation (for CMC layer) failed 3 times")
+        else:
+            subprocess.call(['aeros','nozzle.aeros.cmc.mass'])
 
         # Calculate mass of thermal model (thermal layers + approximate load layers)
         # Inaccurate since load layers are averaged.
@@ -29,7 +40,17 @@ def getMass(nozzle, run_analysis=True, output='verbose'):
         #m2 = float(np.loadtxt("MASS.txt.thermal")) # mass of thermal model
 
         # Calculate mass of load layers and stringers and baffles
-        os.system("aeros nozzle.aeros.mass")
+        if 'SLURM_NTASKS' in os.environ:
+#            subprocess.call(['srun','-n','1','--mem-per-cpu=4G','aeros','nozzle.aeros.mass'])
+            subprocess.call(['salloc','-n','1','--mem-per-cpu=4G','--time=0-00:01','aeros','nozzle.aeros.mass'])
+            if not os.path.exists('MASS.txt'):
+                subprocess.call(['salloc','-n','1','--mem-per-cpu=4G','--time=0-00:01','aeros','nozzle.aeros.mass'])
+            if not os.path.exists('MASS.txt'):
+                subprocess.call(['salloc','-n','1','--mem-per-cpu=4G','--time=0-00:01','aeros','nozzle.aeros.mass'])
+            if not os.path.exists('MASS.txt'):
+                raise RuntimeError("AERO-S mass calculation (structural model) failed 3 times") 
+        else:
+            subprocess.call(['aeros','nozzle.aeros.mass'])
 
     # Post-process
 
@@ -537,57 +558,68 @@ def writeBoundaryConditions3D(nozzle, run_analysis=True, output='verbose'):
     #     1: both thermal and structural analyses
     thermalFlag = 1 if nozzle.thermalFlag == 1 else 0
 
-    if nozzle.dim == '3D' and run_analysis:
-        #--- Get solution from fluid calculation
+    if os.path.exists('nozzle.su2') and os.path.exists('nozzle.dat'):
+        if nozzle.dim == '3D' and run_analysis:
+            #--- Get solution from fluid calculation
 
-        print "Interface AEROS"
+            print "Interface AEROS"
 
-        MshNam_str = "nozzle.mesh"
-        MshNam_cfd = "nozzle.su2"
-        SolNam_cfd = "nozzle.dat"
+            MshNam_str = "nozzle.mesh"
+            MshNam_cfd = "nozzle.su2"
+            SolNam_cfd = "nozzle.dat"
+    
+            Ref_Itf = nozzle.cfd.markers['WALL_ITF']
+            Crd, Tri, Pres, Temp = multif.models.aero.HIGHF.aeros.hf_FluidStructureInterpolation(MshNam_str, MshNam_cfd, SolNam_cfd, Ref_Itf)
 
-        Ref_Itf = nozzle.cfd.markers['WALL_ITF']
-        Crd, Tri, Pres, Temp = multif.models.aero.HIGHF.aeros.hf_FluidStructureInterpolation(MshNam_str, MshNam_cfd, SolNam_cfd, Ref_Itf)
-
-        if thermalFlag > 0:
-            # temperatures for the thermal model
-            f0 = open("TEMPERATURES.txt.thermal", 'r')
+            if thermalFlag > 0:
+                # temperatures for the thermal model
+                f0 = open("TEMPERATURES.txt.thermal", 'r')
+                f0.readline()
+                f1 = open("TEMPERATURES.txt.thermal.3d", 'w')
+                print >> f1, "TEMPERATURE"
+                for line in f0:
+                    nodeId = int(line.split()[0])
+                    print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
+                f0.close()
+                f1.close()
+                os.rename("TEMPERATURES.txt.thermal.3d", "TEMPERATURES.txt.thermal")
+            else:
+                # temperatures for the structural model
+                f0 = open("TEMPERATURES.txt", 'r')
+                f0.readline()
+                f1 = open("TEMPERATURES.txt.3d", 'w')
+                print >> f1, "TEMPERATURE"
+                for line in f0:
+                    nodeId = int(line.split()[0])
+                    print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
+                f0.close()
+                f1.close()
+                os.rename("TEMPERATURES.txt.3d", "TEMPERATURES.txt")
+            
+            # pressures for the structural model
+            f0 = open("PRESSURES.txt", 'r')
             f0.readline()
-            f1 = open("TEMPERATURES.txt.thermal.3d", 'w')
-            print >> f1, "TEMPERATURE"
+            f1 = open("PRESSURES.txt.3d", 'w')
+            print >> f1, "PRESSURE"
             for line in f0:
                 nodeId = int(line.split()[0])
                 print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
             f0.close()
             f1.close()
-            os.rename("TEMPERATURES.txt.thermal.3d", "TEMPERATURES.txt.thermal")
-        else:
+            os.rename("PRESSURES.txt.3d", "PRESSURES.txt")
+
+    else:
+        if nozzle.dim == '3D' and run_analysis:
+            print("WARNING: 3D AERO-S boundary condition files are filled with fluff.")
             # temperatures for the structural model
-            f0 = open("TEMPERATURES.txt", 'r')
-            f0.readline()
-            f1 = open("TEMPERATURES.txt.3d", 'w')
+            f1 = open("TEMPERATURES.txt", 'w')
             print >> f1, "TEMPERATURE"
-            for line in f0:
-                nodeId = int(line.split()[0])
-                print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
-            f0.close()
-            f1.close()
-            os.rename("TEMPERATURES.txt.3d", "TEMPERATURES.txt")
-        
-        # pressures for the structural model
-        f0 = open("PRESSURES.txt", 'r')
-        f0.readline()
-        f1 = open("PRESSURES.txt.3d", 'w')
-        print >> f1, "PRESSURE"
-        i = 0
-        for line in f0:
-            elemId = int(line.split()[0])
-            avgPres = (Pres[Tri[i][0]]+Pres[Tri[i][1]]+Pres[Tri[i][2]])/3
-            print >> f1, "%d %0.16e" % (elemId, avgPres)
-            i = i+1
-        f0.close()
-        f1.close()
-        os.rename("PRESSURES.txt.3d", "PRESSURES.txt")
+            print >> f1, "1 300"
+            f1.close()           
+            f1 = open("PRESSURES.txt", 'w')
+            print >> f1, "PRESSURE"
+            print >> f1, "1 50000"
+            f1.close()           
 
     return
 
@@ -609,7 +641,20 @@ def prepareAEROS(nozzle, run_analysis=True, output='verbose'):
 def callThermalAnalysis():
 
     # Thermal analysis
-    os.system("aeros nozzle.aeroh")
+    # Timed at between 9 and 34 seconds on Sherlock
+    if 'SLURM_NTASKS' in os.environ:
+#        subprocess.call(['srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeroh'])       
+        subprocess.call(['salloc','-n','1','--mem-per-cpu=8G','--time=0-00:04','srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeroh'])
+        # Check that analysis completed okay, if not redo it
+        if not os.path.exists('TEMP.1'):
+            subprocess.call(['salloc','-n','1','--mem-per-cpu=8G','--time=0-00:04','srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeroh'])
+        if not os.path.exists('TEMP.1'):
+            subprocess.call(['salloc','-n','1','--mem-per-cpu=8G','--time=0-00:04','srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeroh'])
+        if not os.path.exists('TEMP.1'):
+            raise RuntimeError("Aero-S failed 3 times calculating thermal analysis.")
+                 
+    else:
+        subprocess.call(['aeros','nozzle.aeroh'])
 
     return
 
@@ -618,11 +663,31 @@ def callStructuralAnalysis():
 
     # Convert temp. output from thermal analysis to input for structural analysis
     _nozzle_module.convert()
-    # Structural analysis of CMC layer
-    os.system("aeros nozzle.aeros.cmc")
-    
+
+    # Structural analysis of CMC layer\
+    # Timed at between 51 and 88 seconds on 1 core on Sherlock
+    if 'SLURM_NTASKS' in os.environ:
+#        subprocess.call(['srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeros.cmc'])
+        subprocess.call(['salloc','-n','1','--mem-per-cpu=8G','--time=0-00:08','srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeros.cmc'])
+        # Check that analysis completed okay, if not redo it
+        if not os.path.exists('STRAINP1.0'):
+            subprocess.call(['salloc','-n','1','--mem-per-cpu=8G','--time=0-00:08','srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeros.cmc'])
+        if not os.path.exists('STRAINP1.0'):
+            subprocess.call(['salloc','-n','1','--mem-per-cpu=8G','--time=0-00:08','srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeros.cmc'])
+        if not os.path.exists('STRAINP1.0'):
+            raise RuntimeError("Aero-S failed 3 times calculating structural analysis.")
+    else:
+        subprocess.call(['aeros','nozzle.aeros.cmc'])
+
+# Temporarily commented out, because we don't need to do this! (QoI don't call for it)
+    print("Structural analysis for load layers is being skipped.")
     # Structural analysis of load layers + baffles and stringers
-    os.system("aeros nozzle.aeros")
+#    if 'SLURM_NTASKS' in os.environ:
+#        subprocess.call(['srun','-n','1','--mem-per-cpu=8G','aeros','nozzle.aeros'])
+#        subprocess.call(['salloc','-n','1','--mem-per-cpu=8G','--time=0-00:10','aeros','nozzle.aeros'])
+#    else:
+#        subprocess.call(['aeros','nozzle.aeros'])
+
 
     return
 

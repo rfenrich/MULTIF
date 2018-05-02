@@ -1943,6 +1943,8 @@ def HF_GenerateMesh_Deform(nozzle):
         sys.stderr.write("## ERROR : Unable to untar %s" % basNamGMF)
         sys.exit(1)
         
+   #
+    print('Projecting nozzle wall')    
     _meshutils_module.py_ProjectNozzleWall3D_DV(basNamGMF, RefUp, RefDown,
     Knots_center_bas, Coefs_center_bas,
     Knots_r1_bas, Coefs_r1_bas  ,
@@ -1951,7 +1953,7 @@ def HF_GenerateMesh_Deform(nozzle):
     Knots_r1, Coefs_r1  ,
     Knots_r2, Coefs_r2  ,
     nozzle.cfd.mesh_name)
-    
+   
     if not os.path.exists(nozzle.cfd.mesh_name):
         sys.stderr.write("## ERROR : Unable to generate %s" % nozzle.cfd.mesh_name)
         sys.exit(1)

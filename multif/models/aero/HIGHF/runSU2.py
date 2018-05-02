@@ -480,7 +480,7 @@ def runSU2(nozzle, sst_perturbation=None, output='verbose'):
     solver_options.Dimension = '3D'
     
     #HF_GenerateExitMesh(nozzle) # SKIP. generate that one in postprocessing
-    
+    print('Deforming mesh.')    
     HF_GenerateMesh_Deform(nozzle)
     
     #if ( nozzle.meshDeformationFlag ):
@@ -490,6 +490,7 @@ def runSU2(nozzle, sst_perturbation=None, output='verbose'):
     #
 
     # --- Setup config file options
+    print('Setting up config file.')
     config = HF_SetupConfig(solver_options)
     
     nozzle.cfd.output_format = config['OUTPUT_FORMAT']
@@ -535,12 +536,12 @@ def runSU2(nozzle, sst_perturbation=None, output='verbose'):
     
     history, finalResidual, residualReduction = callSU2(config)
     
-    # if convergenceCheck:
-        
-    #     if( finalResidual > 0 ):
-        
-    #         if( config.PHYSICAL_PROBLEM=='EULER' and config.RELAXATION_LOCAL=='YES'):
+    if convergenceCheck:
+       
+        if( finalResidual > 0 ):
                 
+            if( config.PHYSICAL_PROBLEM=='EULER' and config.RELAXATION_LOCAL=='YES'):
+                pass   
     #             sys.stdout.write('  ## WARNING: Restarting SU2 for Euler with more conservative parameters \
     #                                  since solution diverged.\n\n')
                 
@@ -639,7 +640,46 @@ def runSU2(nozzle, sst_perturbation=None, output='verbose'):
     #             su2history.write('Decrease in residual: %0.16f\n' % residualReduction)
     #             su2history.write('SU2 did not reach requested accuracy. Continuing...\n')
     #             su2history.close()  
+            else:
             
+                sys.stdout.write('  ## WARNING: Restarting SU2 for RANS since solution did not reach requested accuracy.\n\n')
+                
+                if os.path.exists('history.csv'):
+                    os.rename('history.csv','history0.csv')
+                if os.path.exists('history.vtk'):
+                    os.rename('history.vtk','history0.vtk')
+                
+                config = HF_SetupConfig(solver_options)
+            
+                # Implement restart from previous solution           
+                if( os.path.isfile('nozzle.dat') ):
+                
+                    config.RESTART_SOL= 'YES' # restart from previous solution
+                    os.rename('nozzle.dat','solution_flow.dat')
+                    
+                    config.RESIDUAL_REDUCTION = float(config.RESIDUAL_REDUCTION) - residualReduction
+                    
+                    su2history = open('about.txt','a')
+                    su2history.write('\nRestarting SU2 for RANS since solution did not reach required accuracy:\n')
+                    su2history.write('nozzle.dat renamed to solution_flow.dat, history.csv renamed to history0.csv\n')
+                    su2history.write('EXT_ITER: %i\n' % config.EXT_ITER)
+                    su2history.write('RESIDUAL_REDUCTION: %i\n' % config.RESIDUAL_REDUCTION)
+                    su2history.close()  
+                                
+                else: # Possibly a different residual diverged etc. Regardless, restart with more conservative params
+                    su2history.write('\nRestarting SU2 for RANS (nozzle.dat not found, so a different residual likely diverged)\n')
+                    su2history.close()                                 
+                
+                # Rerun SU2
+                info = SU2.run.CFD(config)
+                
+                history, finalResidual, residualReduction = checkResidual(config)
+                
+                su2history = open('about.txt','a')
+                su2history.write('\nFinal residual: %0.16f\n' % finalResidual)
+                su2history.write('Residual reduction: %0.16f\n' % residualReduction)
+                su2history.close() 
+           
     # --- Adjoint computation (if required)
     
     if nozzle.gradientsFlag and nozzle.qoi.getGradient('THRUST') is not None:
@@ -1354,6 +1394,16 @@ def Compute_Thrust_Gradients_FD (nozzle):
         
         SU2.run.DEF(config_DEF)
         
+        # Rerun SU2_DEF if it failed
+        sys.std.out.write("  -- Rerunning SU2_DEF\n")        
+        if not os.path.exists('nozzle.su2'):
+            SU2.run.DEF(config_DEF)
+        if not os.path.exists('nozzle.su2'):
+            SU2.run.DEF(config_DEF)
+
+        if not os.path.exists('nozzle.su2'):
+            raise RuntimeError("SU2_DEF failed 3 times.")
+
         # --- Call CFD
         
         #thrust_filename = 'thrust_%d.dat' % idv # output from SU2 containing thrust
