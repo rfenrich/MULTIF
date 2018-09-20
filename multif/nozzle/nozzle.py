@@ -564,6 +564,7 @@ class Nozzle:
                         
                 # Set thermostructural parameters if necessary
                 if len(cfgLvl) >= 5:
+                    thermostructural = True
                     if cfgLvl[3] == 'LINEAR':
                         description += ", linear structural analysis"
                     elif cfgLvl[3] == 'NONLINEAR':
@@ -593,7 +594,7 @@ class Nozzle:
                     analysisType = cfgLvl[2]
                         
                     # Set thermostructural parameters if necessary
-                    if len(cfgLvl) == 5:
+                    if len(cfgLvl) >= 5:
                         if cfgLvl[3] == 'LINEAR':
                             nozzle.linearStructuralAnalysisFlag = 1
                         elif cfgLvl[3] == 'NONLINEAR':
@@ -608,7 +609,7 @@ class Nozzle:
                               nozzle.thermostructuralFidelityLevel)
                             sys.exit(0)
                     else:
-                        print "WARNING: Running defaul thermostructural fidelity level of 0.5"
+                        print("WARNING: Running default thermostructural fidelity level of 0.5")
                         nozzle.linearStructuralAnalysisFlag = 1
                         nozzle.thermostructuralFidelityLevel = 0.5
                         
@@ -711,7 +712,7 @@ class Nozzle:
                     nozzle.cfd.bl_yplus     = 1.0
                     
                     # --- Setup max iterations for SU2
-                    if ('SU2_MAX_ITERATIONS' in config) and False:
+                    if 'SU2_MAX_ITERATIONS' in config:
                         nozzle.cfd.su2_max_iterations = int(config['SU2_MAX_ITERATIONS'])
                     elif nozzle.dim == '2D':
                         if method == 'EULER':
@@ -770,6 +771,7 @@ class Nozzle:
                               nozzle.thermostructuralFidelityLevel)
                             sys.exit(0)
                     else:
+                        print("WARNING: thermostructural fidelity level is assumed and set to 0.5")
                         nozzle.linearStructuralAnalysisFlag = 1
                         nozzle.thermostructuralFidelityLevel = 0.5
                             
@@ -783,9 +785,6 @@ class Nozzle:
             # Setup nozzle geometry type
             nozzle.Geometry3D = 'ELLIPTICAL_NO_EDGE' # Default value
             
-            #if nozzle.dim == '3D':
-            print cfgLvl
-            print idxLvl
             if len(cfgLvl) == idxLvl+1:
                 if cfgLvl[idxLvl] == 'FLATTENED':
                     nozzle.Geometry3D = 'AFTEND_FLAT'
