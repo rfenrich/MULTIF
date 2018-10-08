@@ -1,9 +1,10 @@
 import aero
 
-try:
-    import thermstruct
-except:
-    print "## Warning: thermstruct module not found."
+import thermstruct
+#try:
+#    import thermstruct
+#except:
+#    print "## Warning: thermstruct module not found."
     
 import _meshutils_module
 import _mshint_module

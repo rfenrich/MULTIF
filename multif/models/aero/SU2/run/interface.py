@@ -357,7 +357,7 @@ def build_command( the_Command , processes=0, base='' ):
             trun = '0-00:05' # 20 seconds on 32 cores on Sherlock
         elif 'SU2_CFD' in the_Command:
             #trun = '0-01:15' # 45 minutes on 32 cores on Sherlock (3D RANS)
-            trun = '0-00:10' # 2 minutes on 32 cores on Sherlock (3D Euler)
+            trun = '0-00:30' # 2 minutes on 32 cores on Sherlock (3D Euler)
         elif 'SU2_DOT' in the_Command:
             trun = '0-00:15' # not timed yet
         elif 'SU2_AD' in the_Command:

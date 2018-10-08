@@ -2,9 +2,10 @@ import os
 import numpy as np
 import subprocess
 
-import multif
+#import multif
 from ....models import _nozzle_module
 
+#from ....models.aero.HIGHF.aeros import hf_FluidStructureInterpolation
 from ....models.aero.MEDIUMF.postprocessing import ExtractSolutionAtWall
 from ....models.aero.HIGHF.aeros import hf_FluidStructureInterpolation
 
@@ -562,63 +563,65 @@ def writeBoundaryConditions3D(nozzle, run_analysis=True, output='verbose'):
         if nozzle.dim == '3D' and run_analysis:
             #--- Get solution from fluid calculation
 
-        print "Interface AEROS"
+            print "Interface AEROS"
 
-        MshNam_str = "nozzle.mesh"
-        MshNam_cfd = "nozzle.su2"
-        SolNam_cfd = "nozzle.dat"
-
-        # Check for files
-        if (not os.path.isfile(MshNam_str) or not os.path.isfile(MshNam_cfd) or
-            not os.path.isfile(SolNam_cfd)):
-            print("WARNING: Necessary file(s) for fluid-structure interpolation "
-                "have not been found on path. Boundary conditions will not " 
-                "be written.")
-            return
-
-        Ref_Itf = nozzle.cfd.markers['WALL_ITF']
-        Crd, Tri, Pres, Temp = multif.models.aero.HIGHF.aeros.hf_FluidStructureInterpolation(MshNam_str, MshNam_cfd, SolNam_cfd, Ref_Itf)
-
-        if thermalFlag > 0:
-            # temperatures for the thermal model
-            f0 = open("TEMPERATURES.txt.thermal", 'r')
+            MshNam_str = "nozzle.mesh"
+            MshNam_cfd = "nozzle.su2"
+            SolNam_cfd = "nozzle.dat"
+    
+            # Check for files
+            if (not os.path.isfile(MshNam_str) or not os.path.isfile(MshNam_cfd) or
+                not os.path.isfile(SolNam_cfd)):
+                print("WARNING: Necessary file(s) for fluid-structure interpolation "
+                    "have not been found on path. Boundary conditions will not " 
+                    "be written.")
+                return
+    
+            Ref_Itf = nozzle.cfd.markers['WALL_ITF']
+            # Crd, Tri, Pres, Temp = multif.models.aero.HIGHF.aeros.hf_FluidStructureInterpolation(MshNam_str, MshNam_cfd, SolNam_cfd, Ref_Itf)
+            Crd, Tri, Pres, Temp = hf_FluidStructureInterpolation(MshNam_str, MshNam_cfd, SolNam_cfd, Ref_Itf)
+    
+    
+            if thermalFlag > 0:
+                # temperatures for the thermal model
+                f0 = open("TEMPERATURES.txt.thermal", 'r')
+                f0.readline()
+                f1 = open("TEMPERATURES.txt.thermal.3d", 'w')
+                print >> f1, "TEMPERATURE"
+                for line in f0:
+                    nodeId = int(line.split()[0])
+                    print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
+                f0.close()
+                f1.close()
+                os.rename("TEMPERATURES.txt.thermal.3d", "TEMPERATURES.txt.thermal")
+            else:
+                # temperatures for the structural model
+                f0 = open("TEMPERATURES.txt", 'r')
+                f0.readline()
+                f1 = open("TEMPERATURES.txt.3d", 'w')
+                print >> f1, "TEMPERATURE"
+                for line in f0:
+                    nodeId = int(line.split()[0])
+                    print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
+                f0.close()
+                f1.close()
+                os.rename("TEMPERATURES.txt.3d", "TEMPERATURES.txt")
+            
+            # pressures for the structural model
+            f0 = open("PRESSURES.txt", 'r')
             f0.readline()
-            f1 = open("TEMPERATURES.txt.thermal.3d", 'w')
-            print >> f1, "TEMPERATURE"
+            f1 = open("PRESSURES.txt.3d", 'w')
+            print >> f1, "PRESSURE"
+            i = 0
             for line in f0:
-                nodeId = int(line.split()[0])
-                print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
+                elemId = int(line.split()[0])
+                avgPres = (Pres[Tri[i][0]]+Pres[Tri[i][1]]+Pres[Tri[i][2]])/3
+                print >> f1, "%d %0.16e" % (elemId, avgPres)
+                i = i+1
             f0.close()
             f1.close()
-            os.rename("TEMPERATURES.txt.thermal.3d", "TEMPERATURES.txt.thermal")
-        else:
-            # temperatures for the structural model
-            f0 = open("TEMPERATURES.txt", 'r')
-            f0.readline()
-            f1 = open("TEMPERATURES.txt.3d", 'w')
-            print >> f1, "TEMPERATURE"
-            for line in f0:
-                nodeId = int(line.split()[0])
-                print >> f1, "%d %0.16e" % (nodeId, Temp[nodeId-1])
-            f0.close()
-            f1.close()
-            os.rename("TEMPERATURES.txt.3d", "TEMPERATURES.txt")
-        
-        # pressures for the structural model
-        f0 = open("PRESSURES.txt", 'r')
-        f0.readline()
-        f1 = open("PRESSURES.txt.3d", 'w')
-        print >> f1, "PRESSURE"
-        i = 0
-        for line in f0:
-            elemId = int(line.split()[0])
-            avgPres = (Pres[Tri[i][0]]+Pres[Tri[i][1]]+Pres[Tri[i][2]])/3
-            print >> f1, "%d %0.16e" % (elemId, avgPres)
-            i = i+1
-        f0.close()
-        f1.close()
-        os.rename("PRESSURES.txt.3d", "PRESSURES.txt")
-
+            os.rename("PRESSURES.txt.3d", "PRESSURES.txt")
+    
     return
 
 
